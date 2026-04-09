@@ -3,7 +3,7 @@
 /**
  * Smoke-tests for slop.js
  *
- * These tests mock the OpenAI client so no real API key is needed.
+ * These tests mock the OpenAI and Anthropic clients so no real API key is needed.
  * They verify the retry-on-error loop and the happy-path return value.
  */
 
@@ -31,6 +31,27 @@ require.cache[require.resolve('openai')] = {
               callCount++;
               return { choices: [{ message: { content: code } }] };
             },
+          },
+        };
+      }
+    },
+  },
+};
+
+// Patch require('@anthropic-ai/sdk') before loading index.js
+require.cache[require.resolve('@anthropic-ai/sdk')] = {
+  id: require.resolve('@anthropic-ai/sdk'),
+  filename: require.resolve('@anthropic-ai/sdk'),
+  loaded: true,
+  exports: {
+    Anthropic: class MockAnthropic {
+      constructor() {}
+      get messages() {
+        return {
+          create: async () => {
+            const code = responsesToReturn[callCount] ?? responsesToReturn[responsesToReturn.length - 1];
+            callCount++;
+            return { content: [{ type: 'text', text: code }] };
           },
         };
       }
@@ -104,6 +125,67 @@ async function testAsyncCode() {
 }
 
 // ---------------------------------------------------------------------------
+// Test 5 — Anthropic happy path: code works on the first attempt
+// ---------------------------------------------------------------------------
+async function testAnthropicHappyPath() {
+  reset(['2 * 3']);
+  const result = await slop('multiply 2 and 3', { provider: 'anthropic' });
+  assert.strictEqual(result, 6, 'Expected eval("2 * 3") === 6');
+  assert.strictEqual(callCount, 1, 'Expected exactly one Anthropic API call');
+  console.log('✓ testAnthropicHappyPath');
+}
+
+// ---------------------------------------------------------------------------
+// Test 6 — Anthropic retry loop: first response throws, second is correct
+// ---------------------------------------------------------------------------
+async function testAnthropicRetryOnError() {
+  reset([
+    'throw new Error("anthropic oops")', // attempt 1 – fails
+    '"anthropic fixed"',                 // attempt 2 – succeeds
+  ]);
+  const result = await slop('do something', { provider: 'anthropic', maxRetries: 5 });
+  assert.strictEqual(result, 'anthropic fixed', 'Expected result after Anthropic retry');
+  assert.strictEqual(callCount, 2, 'Expected two Anthropic API calls (one fail + one fix)');
+  console.log('✓ testAnthropicRetryOnError');
+}
+
+// ---------------------------------------------------------------------------
+// Test 7 — Anthropic exhausted retries: should throw after maxRetries attempts
+// ---------------------------------------------------------------------------
+async function testAnthropicExhaustedRetries() {
+  reset(['throw new Error("always broken")']);
+  let threw = false;
+  try {
+    await slop('break everything', { provider: 'anthropic', maxRetries: 3 });
+  } catch (err) {
+    threw = true;
+    assert.ok(
+      err.message.includes('gave up after 3 attempt(s)'),
+      `Unexpected error message: ${err.message}`,
+    );
+  }
+  assert.ok(threw, 'Expected slop() to throw after exhausting Anthropic retries');
+  assert.strictEqual(callCount, 3, 'Expected exactly 3 Anthropic API calls');
+  console.log('✓ testAnthropicExhaustedRetries');
+}
+
+// ---------------------------------------------------------------------------
+// Test 8 — OpenAI-compatible baseURL: passes baseURL to OpenAI constructor
+// ---------------------------------------------------------------------------
+async function testOpenAICompatibleBaseURL() {
+  reset(['"groq result"']);
+  // The MockOpenAI ignores baseURL, so this just verifies no error is thrown
+  // and the result flows through correctly.
+  const result = await slop('return a string', {
+    baseURL: 'https://api.groq.com/openai/v1',
+    model: 'llama-3.3-70b-versatile',
+  });
+  assert.strictEqual(result, 'groq result', 'Expected result with custom baseURL');
+  assert.strictEqual(callCount, 1, 'Expected exactly one API call with baseURL');
+  console.log('✓ testOpenAICompatibleBaseURL');
+}
+
+// ---------------------------------------------------------------------------
 // Run all tests
 // ---------------------------------------------------------------------------
 (async () => {
@@ -112,6 +194,10 @@ async function testAsyncCode() {
     await testRetryOnError();
     await testExhaustedRetries();
     await testAsyncCode();
+    await testAnthropicHappyPath();
+    await testAnthropicRetryOnError();
+    await testAnthropicExhaustedRetries();
+    await testOpenAICompatibleBaseURL();
     console.log('\nAll tests passed.');
   } catch (err) {
     console.error('\nTest failed:', err);

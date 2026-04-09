@@ -5,7 +5,7 @@ Never trust your own code again with **slop.js** — have AI generate your code 
 ## How it works
 
 1. You give `slop()` a natural-language prompt.
-2. It asks an OpenAI model to write the JavaScript code.
+2. It asks an AI model to write the JavaScript code.
 3. It `eval()`s the generated code — **raw, no sandboxing**.
 4. If the code throws, the error is fed back to the AI and it tries again, up to `maxRetries` times.
 5. The function is `async`, so you can `await` it before running the next call.
@@ -40,9 +40,54 @@ process.env.OPENAI_API_KEY = 'sk-...';
 
 ```js
 const result = await slop('your prompt here', {
-  apiKey:     'sk-...',   // OpenAI API key (default: process.env.OPENAI_API_KEY)
-  model:      'gpt-4o',   // Model to use (default: 'gpt-4o')
+  provider:   'openai',   // AI provider: "openai" (default) or "anthropic"
+  apiKey:     'sk-...',   // API key (default: OPENAI_API_KEY or ANTHROPIC_API_KEY env var)
+  baseURL:    '...',      // Custom base URL for OpenAI-compatible providers (see below)
+  model:      'gpt-4o',   // Model to use (default: "gpt-4o" for OpenAI, "claude-opus-4-5" for Anthropic)
   maxRetries: 10,         // Max AI fix attempts before throwing (default: 10)
+});
+```
+
+## Supported providers
+
+### OpenAI (default)
+
+```js
+process.env.OPENAI_API_KEY = 'sk-...';
+const result = await slop('your prompt');
+```
+
+### Anthropic (Claude)
+
+```js
+process.env.ANTHROPIC_API_KEY = 'sk-ant-...';
+const result = await slop('your prompt', { provider: 'anthropic' });
+```
+
+### OpenAI-compatible providers
+
+Any provider with an OpenAI-compatible API (Groq, Mistral, Together AI, Perplexity, OpenRouter, Google Gemini, etc.) can be used via the `baseURL` option:
+
+```js
+// Groq
+const result = await slop('your prompt', {
+  apiKey:   process.env.GROQ_API_KEY,
+  baseURL:  'https://api.groq.com/openai/v1',
+  model:    'llama-3.3-70b-versatile',
+});
+
+// Mistral
+const result = await slop('your prompt', {
+  apiKey:   process.env.MISTRAL_API_KEY,
+  baseURL:  'https://api.mistral.ai/v1',
+  model:    'mistral-large-latest',
+});
+
+// Google Gemini (OpenAI-compatible endpoint)
+const result = await slop('your prompt', {
+  apiKey:   process.env.GEMINI_API_KEY,
+  baseURL:  'https://generativelanguage.googleapis.com/v1beta/openai/',
+  model:    'gemini-2.0-flash',
 });
 ```
 
