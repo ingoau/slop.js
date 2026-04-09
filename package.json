@@ -16,6 +16,7 @@
   "author": "GizziXZ",
   "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.86.1",
     "openai": "^6.34.0"
   }
 }
