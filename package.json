@@ -1,0 +1,21 @@
+{
+  "name": "slop.js",
+  "version": "1.0.0",
+  "description": "Never trust your own code again — have AI generate and eval it for you, with automatic error-retry loops.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "keywords": [
+    "ai",
+    "eval",
+    "openai",
+    "codegen",
+    "slop"
+  ],
+  "author": "GizziXZ",
+  "license": "MIT",
+  "dependencies": {
+    "openai": "^6.34.0"
+  }
+}
