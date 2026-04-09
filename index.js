@@ -1,8 +1,29 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 const { OpenAI } = require('openai');
 
-const promptCache = new Map();
+const CACHE_FILE = path.join(os.homedir(), '.slop-cache.json');
+
+function loadCache() {
+  try {
+    return JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function saveCache(cache) {
+  try {
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2), 'utf8');
+  } catch {
+    // Ignore write errors (e.g. read-only filesystem)
+  }
+}
+
+const promptCache = loadCache();
 
 const SYSTEM_PROMPT =
   'You are a JavaScript code generator. ' +
@@ -25,7 +46,7 @@ const RETRY_MESSAGE =
  * @param {string} [options.baseURL]     - Custom base URL for OpenAI-compatible providers (Groq, Mistral, etc.).
  * @param {string} [options.model]       - Model to use (default: "gpt-4o" for OpenAI, "claude-opus-4-5" for Anthropic).
  * @param {number} [options.maxRetries]  - Maximum number of AI fix attempts (default: 10).
- * @param {boolean} [options.cache]      - When true, cache the result for this exact prompt and return it on subsequent calls.
+ * @param {boolean} [options.cache]      - When true, cache the result for this exact prompt and return it on subsequent calls. Results are persisted to ~/.slop-cache.json and survive process restarts.
  * @returns {Promise<*>} Resolves with the value returned by the evaluated code.
  */
 async function slop(prompt, options = {}) {
@@ -33,8 +54,8 @@ async function slop(prompt, options = {}) {
 
   const cacheKey = `${provider}:${model ?? ''}:${prompt}`;
 
-  if (cache && promptCache.has(cacheKey)) {
-    return promptCache.get(cacheKey);
+  if (cache && Object.hasOwn(promptCache, cacheKey)) {
+    return promptCache[cacheKey];
   }
 
   let result;
@@ -45,7 +66,8 @@ async function slop(prompt, options = {}) {
   }
 
   if (cache) {
-    promptCache.set(cacheKey, result);
+    promptCache[cacheKey] = result;
+    saveCache(promptCache);
   }
 
   return result;
