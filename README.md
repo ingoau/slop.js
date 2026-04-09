@@ -23,6 +23,7 @@ Any and all further questions will go through my lawyer.
 3. It `eval()`s the generated code **completely raw with no protection**.
 4. If the code throws, the error is fed back to the AI and it tries again, up to `maxRetries` times.
 5. The function is `async`, so you can `await` it before running the next call.
+6. Optionally, results can be **cached** by prompt so the AI is never called twice for the same input. The cache is persisted to `~/.slop-cache.json` and survives process restarts.
 
 ## Installation
 
@@ -47,6 +48,11 @@ process.env.OPENAI_API_KEY = 'sk-...';
   // You can await each call before moving on to the next.
   const greeting = await slop('write code that returns "Hello, world!"');
   console.log(greeting); // Hello, world!
+
+  // Enable caching so the AI is only called once per unique prompt.
+  // The result is saved to ~/.slop-cache.json and reused on future runs.
+  const cached = await slop('write code that returns the sum of 1 through 10', { cache: true });
+  console.log(cached); // 55  (returned instantly on the second run)
 })();
 ```
 
@@ -59,6 +65,8 @@ const result = await slop('your prompt here', {
   baseURL:    '...',      // Custom base URL for OpenAI-compatible providers (see below)
   model:      'gpt-4o',   // Model to use (default: "gpt-4o" for OpenAI, "claude-opus-4-5" for Anthropic)
   maxRetries: 10,         // Max AI fix attempts before throwing (default: 10)
+  cache:      false,      // Cache results by prompt and return them on subsequent calls (default: false)
+                          // Persisted to ~/.slop-cache.json and survives process restarts
 });
 ```
 
