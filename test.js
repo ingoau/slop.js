@@ -186,6 +186,73 @@ async function testOpenAICompatibleBaseURL() {
 }
 
 // ---------------------------------------------------------------------------
+// Test 9 — cache miss then hit: second call returns cached result without AI
+// ---------------------------------------------------------------------------
+async function testCacheMissThenHit() {
+  // Clear the module-level cache between test runs by deleting the cached module
+  // and re-requiring it, then restore the mock in the new module cache entry.
+  // Simpler: use a unique prompt so no prior test entry exists.
+  reset(['"cached value"']);
+  const uniquePrompt = 'unique prompt for cache test ' + Date.now();
+
+  // First call — cache miss, AI is called.
+  const result1 = await slop(uniquePrompt, { cache: true });
+  assert.strictEqual(result1, 'cached value', 'Expected first call to return AI result');
+  assert.strictEqual(callCount, 1, 'Expected one AI call on cache miss');
+
+  // Second call — cache hit, AI should NOT be called again.
+  const countBefore = callCount;
+  const result2 = await slop(uniquePrompt, { cache: true });
+  assert.strictEqual(result2, 'cached value', 'Expected second call to return cached result');
+  assert.strictEqual(callCount, countBefore, 'Expected no additional AI calls on cache hit');
+
+  console.log('✓ testCacheMissThenHit');
+}
+
+// ---------------------------------------------------------------------------
+// Test 10 — cache disabled: same prompt calls AI every time
+// ---------------------------------------------------------------------------
+async function testCacheDisabled() {
+  reset(['"no cache"']);
+  const uniquePrompt = 'no cache prompt ' + Date.now();
+
+  await slop(uniquePrompt, { cache: false });
+  assert.strictEqual(callCount, 1, 'Expected one AI call');
+
+  await slop(uniquePrompt, { cache: false });
+  assert.strictEqual(callCount, 2, 'Expected a second AI call when cache is disabled');
+
+  console.log('✓ testCacheDisabled');
+}
+
+// ---------------------------------------------------------------------------
+// Test 11 — cache isolation: same prompt with different provider is cached separately
+// ---------------------------------------------------------------------------
+async function testCacheIsolatedByProvider() {
+  const uniquePrompt = 'cache isolation prompt ' + Date.now();
+
+  // First call via openai
+  reset(['"openai result"']);
+  const r1 = await slop(uniquePrompt, { cache: true, provider: 'openai' });
+  assert.strictEqual(r1, 'openai result');
+  assert.strictEqual(callCount, 1, 'Expected one AI call for openai');
+
+  // Second call via anthropic with same prompt — must NOT use the openai cached value
+  reset(['"anthropic result"']);
+  const r2 = await slop(uniquePrompt, { cache: true, provider: 'anthropic' });
+  assert.strictEqual(r2, 'anthropic result');
+  assert.strictEqual(callCount, 1, 'Expected one AI call for anthropic (separate cache entry)');
+
+  // Third call via openai again — should hit cache, no extra AI call
+  reset(['"should not be used"']);
+  const r3 = await slop(uniquePrompt, { cache: true, provider: 'openai' });
+  assert.strictEqual(r3, 'openai result', 'Expected cached openai result');
+  assert.strictEqual(callCount, 0, 'Expected zero AI calls on cache hit');
+
+  console.log('✓ testCacheIsolatedByProvider');
+}
+
+// ---------------------------------------------------------------------------
 // Run all tests
 // ---------------------------------------------------------------------------
 (async () => {
@@ -198,6 +265,9 @@ async function testOpenAICompatibleBaseURL() {
     await testAnthropicRetryOnError();
     await testAnthropicExhaustedRetries();
     await testOpenAICompatibleBaseURL();
+    await testCacheMissThenHit();
+    await testCacheDisabled();
+    await testCacheIsolatedByProvider();
     console.log('\nAll tests passed.');
   } catch (err) {
     console.error('\nTest failed:', err);

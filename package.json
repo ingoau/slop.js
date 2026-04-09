@@ -1,6 +1,6 @@
 {
   "name": "@gizzixz/slop.js",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Never trust your own code again — have AI generate and eval it for you, with automatic error-retry loops.",
   "main": "index.js",
   "scripts": {
