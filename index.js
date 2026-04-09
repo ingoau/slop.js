@@ -4,7 +4,7 @@ const { OpenAI } = require('openai');
 
 const SYSTEM_PROMPT =
   'You are a JavaScript code generator. ' +
-  'When given a prompt, respond with ONLY valid JavaScript code that can be executed with eval(). ' +
+  'When given a prompt, respond with ONLY valid JavaScript code that can be executed within eval(). ' +
   'Do not wrap the code in markdown code fences, do not add explanations, ' +
   'and do not include any text other than the raw JavaScript code itself.';
 
